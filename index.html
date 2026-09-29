@@ -1,1 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>G Tyres</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6f8;margin:0;padding:30px;color:#111}
+.container{max-width:720px;margin:auto;background:#fff;padding:28px;border-radius:14px;box-shadow:0 4px 20px #0001}
+h1{margin-top:0}.box{border:1px solid #ddd;padding:20px;border-radius:12px;margin-top:18px}
+input,select,button{width:100%;box-sizing:border-box;padding:12px;margin-top:8px;border-radius:8px;font-size:16px}
+input,select{border:1px solid #ccc;background:#fff}button{border:0;background:#111;color:#fff;cursor:pointer}
+button:disabled{opacity:.6}.hidden{display:none}.status{padding:10px;border-radius:8px;background:#eef2f5;margin-bottom:18px;white-space:pre-wrap}
+.shop,.tyre{border:1px solid #ddd;border-radius:10px;padding:14px;margin-top:10px}.small{font-size:13px;color:#666}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.danger{background:#b00020}
+.addModelBtn{background:#eef2f5;color:#111;border:1px solid #ccc;font-size:14px;padding:9px}
+@media(max-width:600px){body{padding:15px}.container{padding:20px}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>G Tyres</h1>
+<div id="status" class="status">G Tyres loading...</div>
 
+<div id="loginBox" class="box">
+<h2>Login</h2>
+<input id="email" type="email" placeholder="Email">
+<div style="position:relative"><input id="password" type="password" placeholder="Password" style="padding-right:45px"><span id="togglePassword" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer">👁️</span></div>
+<button id="loginBtn">Login</button>
+</div>
+
+<div id="adminBox" class="hidden">
+<button id="adminLogoutBtn">Logout</button>
+<div class="box"><h2>G Tyres Admin</h2><h3>Create Shop</h3><input id="shopName" placeholder="Shop name"><button id="createShopBtn">Create Shop</button></div>
+<div class="box"><h2>Shops</h2><div id="shops">Loading shops...</div></div>
+</div>
+
+<div id="shopBox" class="hidden">
+<button id="shopLogoutBtn">Logout</button>
+<div class="box"><h2 id="shopTitle">Shop Stock</h2><p class="small">Manage your tyre stock</p></div>
+<div class="box">
+<h2>Add Tyre</h2>
+
+<label class="small" for="brand">Brand</label>
+<select id="brand">
+<option value="">Select brand</option>
+</select>
+
+<label class="small" for="model">Model</label>
+<select id="model" disabled>
+<option value="">Select brand first</option>
+</select>
+<button type="button" id="addModelBtn" class="addModelBtn">＋ Add new model</button>
+
+<input id="size" placeholder="Size e.g. 225/45/17">
+<input id="dot" inputmode="numeric" maxlength="4" placeholder="DOT e.g. 3524">
+<input id="date" placeholder="Date" readonly>
+<label class="small" for="tyreCondition">Condition</label>
+<select id="tyreCondition">
+<option value="New">New</option>
+<option value="New/Old">New/Old</option>
+<option value="Used">Used</option>
+</select>
+<div class="row">
+<div><label class="small">Quantity</label><input id="quantity" type="number" min="1" value="1"></div>
+<div><label class="small">Sale price</label><input id="salePrice" type="number" min="0" step="0.01" placeholder="€"></div>
+</div>
+<button id="addTyreBtn">Add Tyre</button>
+</div>
+<div class="box"><h2>My Stock</h2><div id="tyres">Loading stock...</div></div>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const URL="https://dkejccpmfnwdofbnsuof.supabase.co";
+const KEY="sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F";
+const $=id=>document.getElementById(id),status=$("status"),loginBox=$("loginBox"),adminBox=$("adminBox"),shopBox=$("shopBox"),loginBtn=$("loginBtn"),shops=$("shops"),tyres=$("tyres"),password=$("password");
+let db,currentUser,currentShop;
+
+function msg(x,e){status.textContent=x;status.style.background=e?"#ffe8e8":"#eef2f5"}
+function esc(v){return String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]))}
+function dotDate(dot){if(!/^\d{4}$/.test(dot))return null;let w=+dot.slice(0,2),y=2000+(+dot.slice(2));if(w<1||w>53)return null;let d=new Date(y,0,4),day=d.getDay()||7;d.setDate(d.getDate()-day+1+(w-1)*7);return d}
+function fmt(d){return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}
+function parseSize(size){let m=size.trim().match(/^(\d{3})\s*\/\s*(\d{2,3})\s*\/\s*(\d{2})$/);if(!m)return null;return {width:+m[1],profile:+m[2],rim:+m[3]}}
+function fmtDbDate(s){if(!s)return "-";let d=new Date(s+"T00:00:00");return isNaN(d)?s:fmt(d)}
+async function admin(){let r=await db.rpc("is_admin");if(r.error)throw r.error;return r.data===true}
+async function loadShops(){shops.textContent="Loading shops...";let r=await db.rpc("admin_get_shops");if(r.error)throw r.error;if(!r.data?.length){shops.textContent="No shops yet.";return}shops.innerHTML="";r.data.forEach(s=>{let d=document.createElement("div");d.className="shop";d.innerHTML="<strong>"+esc(s.name)+"</strong><br><span class='small'>ID: "+esc(s.id)+"</span>";shops.appendChild(d)})}
+async function loadShop(){let r=await db.from("shop_users").select("shop_id,role").eq("user_id",currentUser.id).limit(1).maybeSingle();if(r.error)throw r.error;if(!r.data)throw Error("This account is not connected to a tyre shop.");let s=await db.from("shops").select("id,name,is_active").eq("id",r.data.shop_id).eq("is_active",true).single();if(s.error)throw s.error;currentShop=s.data;$("shopTitle").textContent=currentShop.name+" Stock"}
+async function loadTyres(){tyres.textContent="Loading stock...";let r=await db.from("tyres").select("*").eq("shop_id",currentShop.id).order("created_at",{ascending:false});if(r.error)throw r.error;if(!r.data?.length){tyres.textContent="No tyres in stock yet.";return}tyres.innerHTML="";r.data.forEach(t=>{let d=document.createElement("div");d.className="tyre";d.innerHTML="<strong>"+esc(t.brand)+" "+esc(t.model)+"</strong><br><b>Size:</b> "+esc(t.size||"-")+"<br><b>DOT:</b> "+esc(t.date?""+t.date:"-")+"<br><b>Date:</b> "+esc(fmtDbDate(t.date))+"<br><b>Condition:</b> "+esc(t.tyre_condition||"-")+"<br><b>Quantity:</b> "+esc(t.quantity)+"<br><b>Price:</b> €"+esc(t.sale_price??"")+"<button class='danger' data-id='"+esc(t.id)+"'>Delete</button>";tyres.appendChild(d)});tyres.querySelectorAll("button[data-id]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this tyre?"))return;b.disabled=true;let r=await db.from("tyres").delete().eq("id",b.dataset.id).eq("shop_id",currentShop.id);if(r.error){alert(r.error.message);b.disabled=false}else await loadTyres()})}
+
+/* Brand -> Model */
+const defaultModels={
+"BFGoodrich":["Advantage T/A Sport","Trail-Terrain T/A","All-Terrain T/A KO2","All-Terrain T/A KO3","Mud-Terrain T/A KM3"],
+"Bridgestone":["Potenza Sport","Potenza S007A","Turanza 6","Turanza T005","Blizzak LM005"],
+"Continental":["SportContact 7","SportContact 6","PremiumContact 7","PremiumContact 6","AllSeasonContact 2","WinterContact TS 870"],
+"Cooper":["Zeon CS8","Discoverer All Season","Discoverer AT3 4S"],
+"Dunlop":["Sport Maxx RT2","Sport BluResponse","SP Sport Maxx GT","Grandtrek AT5","Winter Sport 5"],
+"Falken":["Azenis FK520","Azenis FK510","EuroAll Season AS210","Ziex ZE310 ECORUN","Wildpeak A/T3W"],
+"Firestone":["Firehawk Sport","Roadhawk","Multiseason GEN 02","Destination HP"],
+"General Tire":["Altimax One S","Grabber AT3","Grabber X3"],
+"Goodyear":["Eagle F1 Asymmetric 6","Eagle F1 Asymmetric 5","EfficientGrip Performance 2","Vector 4Seasons Gen-3","UltraGrip Performance 3"],
+"Goodride":["Sport SA-57","ZuperEco Z-107","All Season Elite Z-401"],
+"Hankook":["Ventus S1 evo3","Ventus S1 evo3 SUV","Ventus Prime4","Kinergy 4S2","Winter i*cept evo3"],
+"Maxxis":["Victra Sport 5","Premitra HP5","Premitra All Season AP3","Bravo AT-771","Razr AT811"],
+"Michelin":["Pilot Sport 4","Pilot Sport 4S","Pilot Sport 5","Primacy 4+","Primacy 5","CrossClimate 2","Alpin 6","X-Ice Snow"],
+"Nexen":["N'Fera Sport","N'Fera SU1","N'Blue 4Season 2","Roadian AT Pro RA8"],
+"Pirelli":["P Zero","P Zero PZ4","Cinturato P7","Cinturato All Season SF3","Scorpion","Winter Sottozero 3"],
+"Royal Black":["Royal Sport","Ecowing ES01 KH27","Royal Performance"],
+"Semperit":["Speed-Life 3","AllSeason-Grip","Speed-Grip 5"],
+"Toyo":["Proxes Sport 2","Proxes Sport","Proxes R888R","Proxes TR1","Celsius AS2","Open Country A/T III"],
+"Uniroyal":["RainSport 5","AllSeasonExpert 2"],
+"Vredestein":["Ultrac","Ultrac Pro","Quatrac","Quatrac Pro+","Wintrac Pro"],
+"Westlake":["Sport SA-57","RP18","ZuperEco Z-107"],
+"Yokohama":["Advan Sport V107","Advan Neova AD09","BluEarth-GT AE51","BluEarth-4S AW21","Geolandar A/T G015"]
+};
+
+function getCustomModels(){try{return JSON.parse(localStorage.getItem("G_TYRES_CUSTOM_MODELS")||"{}")||{}}catch(e){return {}}}
+function saveCustomModels(x){localStorage.setItem("G_TYRES_CUSTOM_MODELS",JSON.stringify(x))}
+function getModels(brand){const c=getCustomModels();return [...new Set([...(defaultModels[brand]||[]),...(c[brand]||[])])].sort((a,b)=>a.localeCompare(b))}
+function initBrands(){const b=$("brand");b.innerHTML='<option value="">Select brand</option>';Object.keys(defaultModels).sort().forEach(x=>{let o=document.createElement("option");o.value=x;o.textContent=x;b.appendChild(o)})}
+function updateModels(){const brand=$("brand").value,model=$("model");model.innerHTML="";if(!brand){model.disabled=true;model.innerHTML='<option value="">Select brand first</option>';return}model.disabled=false;model.innerHTML='<option value="">Select model</option>';getModels(brand).forEach(x=>{let o=document.createElement("option");o.value=x;o.textContent=x;model.appendChild(o)})}
+$("brand").onchange=updateModels;
+$("addModelBtn").onclick=()=>{let brand=$("brand").value;if(!brand){alert("Please select a brand first.");return}let name=prompt("Enter the new model name:");if(!name)return;name=name.trim();if(!name)return;let models=getModels(brand);if(models.some(x=>x.toLowerCase()===name.toLowerCase())){alert("This model already exists.");return}let c=getCustomModels();if(!c[brand])c[brand]=[];c[brand].push(name);saveCustomModels(c);updateModels();$("model").value=name};
+
+$("dot").oninput=function(){this.value=this.value.replace(/\D/g,"");if(this.value.length===4){let d=dotDate(this.value);$("date").value=d?fmt(d):"Invalid DOT"}else $("date").value=""}
+$("togglePassword").onclick=()=>{password.type=password.type==="password"?"text":"password";$("togglePassword").textContent=password.type==="password"?"👁️":"🙈"}
+
+$("addTyreBtn").onclick=async()=>{let b=$("addTyreBtn");b.disabled=true;try{let brand=$("brand").value.trim(),model=$("model").value.trim(),size=$("size").value.trim(),dot=$("dot").value.trim(),q=+$("quantity").value,p=$("salePrice").value,condition=$("tyreCondition").value;if(!brand||!model||!size)throw Error("Fill Brand, Model and Size.");let parsed=parseSize(size);if(!parsed)throw Error("Size must be like 225/45/17.");let d=dotDate(dot);if(!d)throw Error("Invalid DOT.");if(!q||q<1)throw Error("Quantity must be at least 1.");let date=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");let r=await db.from("tyres").insert({shop_id:currentShop.id,brand,model,size,width:parsed.width,profile:parsed.profile,rim:parsed.rim,date,quantity:q,sale_price:p===""?null:+p,tyre_condition:condition});if(r.error)throw r.error;["size","dot","date","salePrice"].forEach(x=>$(x).value="");$("brand").value="";updateModels();$("quantity").value=1;$("tyreCondition").value="New";msg("Tyre added successfully.");await loadTyres()}catch(e){msg("ERROR: "+e.message,true)}finally{b.disabled=false}}
+
+$("createShopBtn").onclick=async()=>{let b=$("createShopBtn");b.disabled=true;try{let n=$("shopName").value.trim();if(!n)throw Error("Enter a shop name.");let r=await db.rpc("create_shop",{shop_name:n});if(r.error)throw r.error;$("shopName").value="";msg("Shop created. ID: "+r.data);await loadShops()}catch(e){msg("ERROR: "+e.message,true)}finally{b.disabled=false}}
+
+loginBtn.onclick=async()=>{loginBtn.disabled=true;msg("Logging in...");try{let email=$("email").value.trim(),pass=password.value;if(!email||!pass)throw Error("Enter email and password.");let r=await db.auth.signInWithPassword({email,password:pass});if(r.error)throw r.error;currentUser=r.data.user;if(await admin()){loginBox.classList.add("hidden");adminBox.classList.remove("hidden");msg("Logged in as G Tyres Admin.");await loadShops()}else{await loadShop();loginBox.classList.add("hidden");shopBox.classList.remove("hidden");msg("Logged in as "+currentShop.name+".");await loadTyres()}}catch(e){msg("ERROR: "+e.message,true)}finally{loginBtn.disabled=false}}
+
+try{db=window.supabase.createClient(URL,KEY);window.db=db;msg("Supabase connected. Ready for login.");}catch(e){msg("ERROR creating Supabase client: "+e.message,true)}
+
+$("adminLogoutBtn").onclick=async()=>{try{await db.auth.signOut();currentUser=null;currentShop=null;adminBox.classList.add("hidden");shopBox.classList.add("hidden");loginBox.classList.remove("hidden");$("email").value="";$("password").value="";msg("Logged out.");}catch(e){console.error(e);msg("Logout error: "+e.message,true)}};
+
+$("shopLogoutBtn").onclick=async()=>{try{await db.auth.signOut();currentUser=null;currentShop=null;adminBox.classList.add("hidden");shopBox.classList.add("hidden");loginBox.classList.remove("hidden");$("email").value="";$("password").value="";msg("Logged out.");}catch(e){msg("Logout error: "+e.message,true)}};
+
+initBrands();
+
+setTimeout(async()=>{try{const {data}=await db.auth.getSession();const session=data.session;if(!session)return;currentUser=session.user;if(await admin()){loginBox.classList.add("hidden");adminBox.classList.remove("hidden");msg("Logged in as G Tyres Admin.");await loadShops()}else{await loadShop();loginBox.classList.add("hidden");shopBox.classList.remove("hidden");msg("Logged in as "+currentShop.name+".");await loadTyres()}}catch(e){console.error("Session restore error:",e)}},0);
+
+})();
+</script>
+</body>
+</html>
