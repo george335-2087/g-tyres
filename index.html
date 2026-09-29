@@ -53,7 +53,7 @@ button:disabled{opacity:.6}.hidden{display:none}.status{padding:10px;border-radi
 </select>
 <button type="button" id="addModelBtn" class="addModelBtn">＋ Add new model</button>
 
-<input id="size" placeholder="Size e.g. 225/45/17">
+<input id="size" placeholder="Size e.g. 225/45/17" inputmode="numeric" maxlength="10">
 <input id="dot" inputmode="numeric" maxlength="4" placeholder="DOT e.g. 3524">
 <input id="date" placeholder="Date" readonly>
 <label class="small" for="tyreCondition">Condition</label>
@@ -124,7 +124,20 @@ function initBrands(){const b=$("brand");b.innerHTML='<option value="">Select br
 function updateModels(){const brand=$("brand").value,model=$("model");model.innerHTML="";if(!brand){model.disabled=true;model.innerHTML='<option value="">Select brand first</option>';return}model.disabled=false;model.innerHTML='<option value="">Select model</option>';getModels(brand).forEach(x=>{let o=document.createElement("option");o.value=x;o.textContent=x;model.appendChild(o)})}
 $("brand").onchange=updateModels;
 $("addModelBtn").onclick=()=>{let brand=$("brand").value;if(!brand){alert("Please select a brand first.");return}let name=prompt("Enter the new model name:");if(!name)return;name=name.trim();if(!name)return;let models=getModels(brand);if(models.some(x=>x.toLowerCase()===name.toLowerCase())){alert("This model already exists.");return}let c=getCustomModels();if(!c[brand])c[brand]=[];c[brand].push(name);saveCustomModels(c);updateModels();$("model").value=name};
+$("size").oninput=function(){
+  let v=this.value.replace(/\D/g,"").slice(0,8);
 
+  if(v.length>3 && v.length<=5)
+    v=v.slice(0,3)+"/"+v.slice(3);
+  else if(v.length>5)
+    v=v.slice(0,3)+"/"+v.slice(3,5)+"/"+v.slice(5);
+
+  this.value=v;
+
+  if(v.length===9){
+    $("dot").focus();
+  }
+};
 $("dot").oninput=function(){this.value=this.value.replace(/\D/g,"");if(this.value.length===4){let d=dotDate(this.value);$("date").value=d?fmt(d):"Invalid DOT"}else $("date").value=""}
 $("togglePassword").onclick=()=>{password.type=password.type==="password"?"text":"password";$("togglePassword").textContent=password.type==="password"?"👁️":"🙈"}
 
