@@ -348,11 +348,12 @@ async function admin(){
 }
 
 async function loadShop(){
-  const{data,error}=await db.from('shop_users').select('shop_id,role,shops(id,name,is_active)').eq('user_id',currentUser.id);
-  if(error)throw error;
-  const x=(data||[]).find(r=>r.shops&&r.shops.is_active!==false);
-  if(!x)throw Error('No shop assigned to this account.');
-  currentShop=x.shops;
+  const membership=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id).limit(1).maybeSingle();
+  if(membership.error)throw membership.error;
+  if(!membership.data)throw Error('No shop assigned to this account.');
+  const shop=await db.from('shops').select('id,name,is_active').eq('id',membership.data.shop_id).eq('is_active',true).single();
+  if(shop.error)throw shop.error;
+  currentShop=shop.data;
   $("shopTitle").textContent=currentShop.name;
 }
 
