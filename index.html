@@ -126,23 +126,78 @@ const togglePassword=$('togglePassword');togglePassword.onclick=()=>{const p=$('
 $('cancelEditBtn').onclick=resetForm;
 $('saveTyreBtn').onclick=async()=>{try{if(!currentShop)throw Error('No shop selected.');const b=$('brand').value,m=$('model').value,s=$('size').value.trim(),p=parseSize(s),dot=$('dot').value.trim(),date=dotToDate(dot);if(!b||!m)throw Error('Select brand and model.');if(!p)throw Error('Size must be like 205/40/17.');if(!date)throw Error('DOT must be WWYY, for example 3525.');const qty=Math.max(1,parseInt($('quantity').value||'1',10));const price=$('salePrice').value===''?null:Number($('salePrice').value);const row={shop_id:currentShop.id,brand:b,model:m,width:p.width,profile:p.profile,rim:p.rim,size:s,date,quantity:qty,sale_price:price,tyre_condition:$('tyreCondition').value,updated_at:new Date().toISOString()};let r;if(editTyreId)r=await db.from('tyres').update(row).eq('id',editTyreId).eq('shop_id',currentShop.id);else r=await db.from('tyres').insert(row);if(r.error)throw r.error;msg(editTyreId?'Tyre updated successfully.':'Tyre added successfully.');resetForm();await loadTyres()}catch(e){msg('ERROR: '+e.message,true)}};
 
-async function admin(){try{const{data,error}=await db.rpc('is_admin');return !error&&data===true}catch{return false}}
-async function detectAdmin(){try{const{error}=await db.rpc('admin_get_shops');return !error}catch{return false}}
-async function loadShop(){const{data,error}=await db.from('shop_users').select('shop_id,role,shops(id,name,is_active)').eq('user_id',currentUser.id);if(error)throw error;const x=(data||[]).find(r=>r.shops&&r.shops.is_active!==false);if(!x)throw Error('No shop assigned to this account.');currentShop=x.shops;$('shopTitle').textContent=currentShop.name}
+async function admin(){
+ const r=await db.rpc('admin_get_shops');
+ if(r.error) throw r.error;
+ return Array.isArray(r.data)&&r.data.length>0;
+}
+async function loadShop(){
+ const r=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id);
+ if(r.error) throw r.error;
+ const membership=(r.data||[])[0];
+ if(!membership) throw Error('No shop assigned to this account.');
+ const s=await db.from('shops').select('id,name,is_active').eq('id',membership.shop_id).maybeSingle();
+ if(s.error) throw s.error;
+ if(!s.data||s.data.is_active===false) throw Error('No active shop assigned to this account.');
+ currentShop=s.data;
+ $('shopTitle').textContent=currentShop.name;
+}
 async function loadShops(){const{data,error}=await db.rpc('admin_get_shops');if(error)throw error;$('shopsList').innerHTML=(data||[]).map(s=>`<div class="adminrow"><span>${esc(s.name)}${s.is_active?'':' (inactive)'}</span><span>${esc(String(s.id).slice(0,8))}</span></div>`).join('')||'<div class="empty">No shops yet.</div>'}
 $('createShopBtn').onclick=async()=>{try{const n=$('shopName').value.trim();if(!n)throw Error('Enter shop name.');const{data,error}=await db.rpc('create_shop',{shop_name:n});if(error)throw error;$('shopName').value='';msg('Shop created. ID: '+data);await loadShops()}catch(e){msg('ERROR: '+e.message,true)}};
 async function loadTyres(){const{data,error}=await db.from('tyres').select('*').eq('shop_id',currentShop.id).order('created_at',{ascending:false});if(error)throw error;currentTyres=data||[];renderTyres()}
 function renderTyres(){if(!currentTyres.length){$('stockList').innerHTML='<div class="empty">No tyres in stock.</div>';return}$('stockList').innerHTML=currentTyres.map(t=>`<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3><div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div><div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div><div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div><div class="actions"><button class="secondary" onclick="editTyre('${t.id}')">Edit</button><button class="danger" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`).join('')}
 window.editTyre=function(id){const t=currentTyres.find(x=>x.id===id);if(!t)return;editTyreId=id;$('formTitle').textContent='Edit Tyre';$('saveTyreBtn').textContent='Save Changes';$('cancelEditBtn').classList.remove('hidden');populateBrands(t.brand);$('brand').value=t.brand;updateModels(t.model);$('size').value=t.size||`${t.width}/${t.profile}/${t.rim}`;$('dot').value=dateToDot(t.date);$('tyreCondition').value=t.tyre_condition||'New';$('quantity').value=t.quantity??1;$('salePrice').value=t.sale_price??'';window.scrollTo({top:0,behavior:'smooth'})};
 window.deleteTyre=async function(id){if(!confirm('Delete this tyre?'))return;const{error}=await db.from('tyres').delete().eq('id',id).eq('shop_id',currentShop.id);if(error){msg('ERROR: '+error.message,true);return}msg('Tyre deleted.');await loadTyres()};
-async function doLogin(){try{$('loginBtn').disabled=true;const email=$('email').value.trim(),password=$('password').value;if(!email||!password)throw Error('Enter email and password.');const{data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;if(await detectAdmin()){$('loginBox').classList.add('hidden');$('adminBox').classList.remove('hidden');msg('Logged in as G Tyres Admin.');await loadShops()}else{await loadShop();$('loginBox').classList.add('hidden');$('shopBox').classList.remove('hidden');msg('Logged in as '+currentShop.name+'.');await loadTyres()}}catch(e){msg('ERROR: '+(e?.message||String(e)),true)}finally{$('loginBtn').disabled=false}}
+async function doLogin(){
+ try{
+  $('loginBtn').disabled=true;
+  const email=$('email').value.trim(),password=$('password').value;
+  if(!email||!password) throw Error('Enter email and password.');
+  const r=await db.auth.signInWithPassword({email,password});
+  if(r.error) throw r.error;
+  currentUser=r.data.user;
+  let isAdmin=false;
+  try{ isAdmin=await admin(); }catch(e){ throw Error('Login succeeded, but Admin access could not be checked: '+e.message); }
+  if(isAdmin){
+   $('loginBox').classList.add('hidden');
+   $('shopBox').classList.add('hidden');
+   $('adminBox').classList.remove('hidden');
+   msg('Logged in as G Tyres Admin.');
+   await loadShops();
+  }else{
+   await loadShop();
+   $('loginBox').classList.add('hidden');
+   $('adminBox').classList.add('hidden');
+   $('shopBox').classList.remove('hidden');
+   msg('Logged in as '+currentShop.name+'.');
+   await loadTyres();
+  }
+ }catch(e){ msg('ERROR: '+(e?.message||String(e)),true); }
+ finally{ $('loginBtn').disabled=false; }
+}
 $('loginBtn').onclick=doLogin;
 $('email').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 $('shopLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};$('adminLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};
-async function restore(){try{const{data}=await db.auth.getSession();if(!data.session)return;currentUser=data.session.user;if(await detectAdmin()){$('loginBox').classList.add('hidden');$('adminBox').classList.remove('hidden');await loadShops();msg('Logged in as G Tyres Admin.')}else{await loadShop();$('loginBox').classList.add('hidden');$('shopBox').classList.remove('hidden');await loadTyres();msg('Logged in as '+currentShop.name+'.')}}catch(e){msg('Session error: '+(e?.message||String(e)),true)}}
-try{populateBrands();}catch(e){msg('ERROR loading form: '+(e?.message||String(e)),true)}
-restore();
+async function restore(){
+ try{
+  const r=await db.auth.getSession();
+  if(!r.data.session)return;
+  currentUser=r.data.session.user;
+  if(await admin()){
+   $('loginBox').classList.add('hidden');$('shopBox').classList.add('hidden');$('adminBox').classList.remove('hidden');
+   await loadShops();msg('Logged in as G Tyres Admin.');
+  }else{
+   await loadShop();
+   $('loginBox').classList.add('hidden');$('adminBox').classList.add('hidden');$('shopBox').classList.remove('hidden');
+   await loadTyres();msg('Logged in as '+currentShop.name+'.');
+  }
+ }catch(e){
+  await db.auth.signOut();
+  msg('Session error: '+(e?.message||String(e)),true);
+ }
+}
+populateBrands();restore();
 </script>
 </body>
 </html>
