@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>G Tyres Stocks</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f5f7;color:#111}.wrap{max-width:900px;margin:auto;padding:18px}.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px #0001}h1,h2{margin-top:0}.hidden{display:none!important}label{display:block;font-weight:700;margin:12px 0 5px}input,select,button{width:100%;padding:12px;border:1px solid #ccc;border-radius:9px;font-size:16px}button{background:#111;color:#fff;border:0;cursor:pointer;font-weight:700;margin-top:10px}button.secondary{background:#555}button.danger{background:#b00020}button.small{width:auto;padding:8px 12px;margin:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.stock{border:1px solid #ddd;border-radius:12px;padding:14px;margin-top:10px}.stock h3{margin:0 0 7px}.muted{color:#666;font-size:13px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.top{display:flex;justify-content:space-between;gap:10px;align-items:center}.top button{width:auto;margin:0}.msg{padding:10px;border-radius:9px;background:#eee;margin-bottom:12px;white-space:pre-wrap}.price{font-size:14px;font-weight:700;text-align:right;margin-top:8px}.empty{text-align:center;color:#777;padding:20px}.adminrow{display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd;border-radius:10px;padding:12px;margin-top:8px}.adminrow button{width:auto;margin:0}.suggest{font-size:12px;color:#666;margin-top:4px}.passwordWrap{position:relative}.passwordWrap input{padding-right:52px}.eyeBtn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:40px;height:40px;padding:0;margin:0;background:transparent;color:#555;font-size:20px;line-height:40px}@media(max-width:650px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.top button{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="message" class="msg hidden"></div>
+
+<div id="loginBox" class="card">
+<h1>G Tyres</h1>
+<label>Email</label><input id="email" type="email" autocomplete="username">
+<label>Password</label><div class="passwordWrap"><input id="password" type="password" autocomplete="current-password"><button type="button" id="togglePassword" class="eyeBtn" aria-label="Show password" title="Show password">👁️</button></div>
+<button id="loginBtn">Login</button>
+</div>
+
+<div id="adminBox" class="card hidden">
+<div class="top"><h2>G Tyres Admin</h2><button id="adminLogoutBtn" class="secondary">Logout</button></div>
+<label>New shop</label><input id="shopName" placeholder="Shop name">
+<button id="createShopBtn">Create Shop</button>
+<h3>Shops</h3><div id="shopsList"></div>
+</div>
+
+<div id="shopBox" class="hidden">
+<div class="card">
+<div class="top"><div><h2 id="shopTitle">Shop</h2><div class="muted">G Tyres Stocks</div></div><button id="shopLogoutBtn" class="secondary">Logout</button></div>
+</div>
+
+<div class="card">
+<h2 id="formTitle">Add Tyre</h2>
+<div class="grid">
+<div><label>Brand</label><select id="brand"><option value="">Select brand</option></select><button type="button" id="addBrandBtn" class="secondary">＋ Add new brand</button></div>
+<div><label>Model</label><select id="model"><option value="">Select model</option></select><button type="button" id="addModelBtn" class="secondary">＋ Add new model</button></div>
+</div>
+<label>Size</label><input id="size" inputmode="numeric" maxlength="9" placeholder="205/40/17"><div class="suggest">Example: 205 → 205/ → 205/40/ → 205/40/17 → DOT</div>
+<label>DOT</label><input id="dot" inputmode="numeric" maxlength="4" placeholder="WWYY">
+<div class="grid"><div><label>Condition</label><select id="tyreCondition"><option>New</option><option>New-Old</option><option>Used</option></select></div><div><label>Quantity</label><input id="quantity" type="number" min="1" value="1"></div></div>
+<label>Sale Price (€)</label><input id="salePrice" type="number" step="0.01" min="0" placeholder="0.00">
+<button id="saveTyreBtn">Add Tyre</button><button id="cancelEditBtn" class="secondary hidden">Cancel Edit</button>
+</div>
+
+<div class="card"><h2>My Stock</h2><div id="stockList"></div></div>
+</div>
+</div>
+
+<script>
+const URL='https://dkejccpmfnwdofbnsuof.supabase.co';
+const KEY='sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F';
+const db=window.supabase.createClient(URL,KEY); window.db=db;
+let currentUser=null,currentShop=null,currentTyres=[],editTyreId=null;
+const $=id=>document.getElementById(id);
+function msg(t,error=false){const e=$("message");e.textContent=t;e.classList.remove('hidden');e.style.background=error?'#ffe2e2':'#eee'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+const baseBrands=[
+'Achilles','Aplus','Apollo','Atturo','Barum','BFGoodrich','Bridgestone','Centara','Ceat','Comforser','Continental','Cooper','CST','Debica','Delinte','Double Coin','Dunlop','Duraturn','Falken','Federal','Firestone','Fulda','General Tire','Giti','Goodride','Goodyear','Grenlander','Hankook','Imperial','JK Tyre','Kapsen','Kelly','Kleber','Kormoran','Kumho','Landsail','Laufenn','Linglong','Mazzini','Matador','Maxxis','Michelin','Milestar','MRF','Nexen','Nitto','Nokian Tyres','Ovation','Petlas','Pirelli','Powertrac','Radar','Riken','Royal Black','Sailun','Sava','Semperit','Sentury','Sumitomo','Tigar','Triangle','Toyo','Uniroyal','Vanderbilt','Vee Rubber','Viking','Vitour','Vredestein','Westlake','Yokohama','Linglong','Zeta'
+].filter((x,i,a)=>a.indexOf(x)===i).sort();
+const modelMap={
+'Michelin':['Pilot Sport 4','Pilot Sport 5','Pilot Sport Cup 2','Primacy 4+','Primacy 5','CrossClimate 2','Alpin 6','Agilis 3'],
+'Bridgestone':['Potenza Sport','Potenza S001','Turanza T005','Turanza 6','Weather Control A005','Blizzak LM005'],
+'Continental':['SportContact 6','SportContact 7','PremiumContact 6','PremiumContact 7','AllSeasonContact 2','WinterContact TS 870'],
+'Goodyear':['Eagle F1 Asymmetric 5','Eagle F1 Asymmetric 6','EfficientGrip Performance 2','Vector 4Seasons Gen-3','UltraGrip Performance 3'],
+'Pirelli':['P Zero','P Zero Corsa','Cinturato P7','Cinturato All Season SF3','Scorpion','Winter Sottozero 3'],
+'Hankook':['Ventus S1 evo3','Ventus S1 evo Z','Ventus Prime4','Kinergy 4S2','Winter i*cept evo3'],
+'Yokohama':['Advan Sport V107','Advan Fleva V701','BluEarth GT AE51','BluEarth 4S AW21'],
+'Dunlop':['Sport Maxx Race 2','Sport Maxx RT2','SP Sport Maxx GT','Sport All Season'],
+'Falken':['Azenis FK520','Azenis RT660','Ziex ZE310','EuroAll Season AS210'],
+'BFGoodrich':['g-Force Sport COMP-2','Advantage Control','All-Terrain T/A KO2','Trail-Terrain T/A'],
+'Toyo':['Proxes Sport 2','Proxes R888R','Proxes TR1','Open Country A/T III'],
+'Kumho':['Ecsta PS71','Ecsta PS91','Ecsta HS52','Solus 4S HA32'],
+'Nexen':['N Fera Sport','N Blue S','N Blue 4Season 2','Roadian AT Pro RA8'],
+'Maxxis':['Victra Sport 5','Premitra HP5','AP3 4S','Razr AT811'],
+'Vredestein':['Ultrac Pro','Ultrac','Quatrac Pro+','Wintrac Pro'],
+'Cooper':['Discoverer AT3','Zeon CS8','Cobra Radial G/T'],
+'Firestone':['Roadhawk','Roadhawk 2','Multiseason GEN 02'],
+'Uniroyal':['RainSport 5','AllSeasonExpert 2'],
+'Giti':['SportActive 2','GitiControl 288','GitiSynergy E1'],
+'Sailun':['Atrezzo ZSR2','Atrezzo Elite','Terramax AT'],
+'Linglong':['Green-Max HP010','Green-Max 4S','Crosswind HP010'],
+'Triangle':['Efficientgrip','Sportex TH201','Advantage T/S'],
+'Petlas':['Velox Sport PT741','Imperium PT515','Multi Action PT565'],
+'Nokian Tyres':['Powerproof 1','Wetproof 1','Seasonproof 1','Hakkapeliitta R5'],
+'Barum':['Bravuris 5HM','Quartaris 5','Polaris 5'],
+'Matador':['Hectorra 5','MP 93 Nordicca','MP47 Hectorra 3'],
+'Fulda':['SportControl 2','EcoControl HP2','MultiControl'],
+'Sava':['Intensa UHP 2','Perfecta','All Weather'],
+'Debica':['Presto UHP 2','Presto HP2','Navigator 3'],
+'Kleber':['Dynaxer HP5','Quadraxer 3'],
+'Kormoran':['Road Performance','All Season'],
+'Laufenn':['S Fit EQ+','G Fit EQ+','G Fit 4S'],
+'Royal Black':['Royal Performance','Ecowing ES01 KH27','Royal Mile'],
+'Westlake':['Sport SA07','ZuperEco Z-107','H202'],
+'Goodride':['Sport SA07','RP28','ZuperEco Z-107'],
+'Powertrac':['City Racing','Ecowing ES01'],
+'Ovation':['VI-682','VI-388','VI-786'],
+'Linglong':['Green-Max HP010','Green-Max 4S']
+};
+function customBrands(){try{return JSON.parse(localStorage.getItem('G_TYRES_CUSTOM_BRANDS')||'[]')}catch{return[]}}
+function saveCustomBrands(a){localStorage.setItem('G_TYRES_CUSTOM_BRANDS',JSON.stringify(a))}
+function customModels(){try{return JSON.parse(localStorage.getItem('G_TYRES_CUSTOM_MODELS')||'{}')}catch{return{}}}
+function saveCustomModels(a){localStorage.setItem('G_TYRES_CUSTOM_MODELS',JSON.stringify(a))}
+function allBrands(){return [...new Set([...baseBrands,...customBrands()])].sort()}
+function populateBrands(selected=''){$('brand').innerHTML='<option value="">Select brand</option>'+allBrands().map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')+'<option value="__add__">＋ Add new brand</option>';if(selected)$('brand').value=selected;updateModels()}
+function updateModels(selected=''){
+ const b=$('brand').value;let arr=[...(modelMap[b]||[])];const cm=customModels();if(cm[b])arr.push(...cm[b]);arr=[...new Set(arr)].sort();$('model').innerHTML='<option value="">Select model</option>'+arr.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')+'<option value="__add__">＋ Add new model</option>';if(selected)$('model').value=selected;
+}
+$('brand').onchange=()=>{if($('brand').value==='__add__'){addBrand();return}updateModels()};
+$('model').onchange=()=>{if($('model').value==='__add__')addModel()};
+function addBrand(){const n=prompt('Enter new tyre brand:');if(!n)return;const name=n.trim();if(!name)return;let a=customBrands();if(!allBrands().some(x=>x.toLowerCase()===name.toLowerCase())){a.push(name);saveCustomBrands(a)}populateBrands(name);msg('Brand added: '+name)}
+function addModel(){const b=$('brand').value;if(!b){alert('Select a brand first.');return}const n=prompt('Enter new model for '+b+':');if(!n)return;const name=n.trim();if(!name)return;let cm=customModels();cm[b]=cm[b]||[];if(!cm[b].some(x=>x.toLowerCase()===name.toLowerCase()))cm[b].push(name);saveCustomModels(cm);updateModels(name);msg('Model added: '+name)}
+$('addBrandBtn').onclick=addBrand;$('addModelBtn').onclick=addModel;
+
+function parseSize(s){const m=String(s||'').trim().match(/^(\d{3})\/(\d{2})\/(\d{2})$/);if(!m)return null;return{width:+m[1],profile:+m[2],rim:+m[3]}}
+$('size').oninput=function(){let d=this.value.replace(/\D/g,'').slice(0,7),o=d;if(d.length>=3&&d.length<5)o=d.slice(0,3)+'/'+d.slice(3);else if(d.length>=5)o=d.slice(0,3)+'/'+d.slice(3,5)+'/'+d.slice(5,7);this.value=o;if(d.length===3)this.value+='/' ;if(d.length===7)$('dot').focus()};
+$('dot').oninput=function(){this.value=this.value.replace(/\D/g,'').slice(0,4);if(this.value.length===4){const w=+this.value.slice(0,2),y=+this.value.slice(2);if(w>=1&&w<=53){const yr=2000+y;const d=new Date(Date.UTC(yr,0,4));const day=d.getUTCDay()||7;d.setUTCDate(d.getUTCDate()-day+1+(w-1)*7);this.dataset.date=d.toISOString().slice(0,10)}}};
+function dateToDot(dateStr){if(!dateStr)return'';const d=new Date(dateStr+'T12:00:00Z');if(isNaN(d))return'';const target=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));const day=target.getUTCDay()||7;target.setUTCDate(target.getUTCDate()+4-day);const year=target.getUTCFullYear();const first=new Date(Date.UTC(year,0,1));const week=Math.ceil((((target-first)/86400000)+1)/7);return String(week).padStart(2,'0')+String(year).slice(-2)}
+function dotToDate(dot){if(!/^\d{4}$/.test(dot))return null;const w=+dot.slice(0,2),yr=2000+(+dot.slice(2));if(w<1||w>53)return null;const d=new Date(Date.UTC(yr,0,4));const day=d.getUTCDay()||7;d.setUTCDate(d.getUTCDate()-day+1+(w-1)*7);return d.toISOString().slice(0,10)}
+function resetForm(){editTyreId=null;$('formTitle').textContent='Add Tyre';$('saveTyreBtn').textContent='Add Tyre';$('cancelEditBtn').classList.add('hidden');$('brand').value='';updateModels();$('model').value='';$('size').value='';$('dot').value='';$('dot').dataset.date='';$('tyreCondition').value='New';$('quantity').value=1;$('salePrice').value=''}
+const togglePassword=$('togglePassword');togglePassword.onclick=()=>{const p=$('password');const visible=p.type==='text';p.type=visible?'password':'text';togglePassword.textContent=visible?'👁️':'🙈';togglePassword.setAttribute('aria-label',visible?'Show password':'Hide password');togglePassword.title=visible?'Show password':'Hide password'};
+$('cancelEditBtn').onclick=resetForm;
+$('saveTyreBtn').onclick=async()=>{try{if(!currentShop)throw Error('No shop selected.');const b=$('brand').value,m=$('model').value,s=$('size').value.trim(),p=parseSize(s),dot=$('dot').value.trim(),date=dotToDate(dot);if(!b||!m)throw Error('Select brand and model.');if(!p)throw Error('Size must be like 205/40/17.');if(!date)throw Error('DOT must be WWYY, for example 3525.');const qty=Math.max(1,parseInt($('quantity').value||'1',10));const price=$('salePrice').value===''?null:Number($('salePrice').value);const row={shop_id:currentShop.id,brand:b,model:m,width:p.width,profile:p.profile,rim:p.rim,size:s,date,quantity:qty,sale_price:price,tyre_condition:$('tyreCondition').value,updated_at:new Date().toISOString()};let r;if(editTyreId)r=await db.from('tyres').update(row).eq('id',editTyreId).eq('shop_id',currentShop.id);else r=await db.from('tyres').insert(row);if(r.error)throw r.error;msg(editTyreId?'Tyre updated successfully.':'Tyre added successfully.');resetForm();await loadTyres()}catch(e){msg('ERROR: '+e.message,true)}};
+
+async function admin(){
+ const r=await db.rpc('admin_get_shops');
+ if(r.error) throw r.error;
+ return Array.isArray(r.data)&&r.data.length>0;
+}
+async function loadShop(){
+ const r=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id);
+ if(r.error) throw r.error;
+ const membership=(r.data||[])[0];
+ if(!membership) throw Error('No shop assigned to this account.');
+ const s=await db.from('shops').select('id,name,is_active').eq('id',membership.shop_id).maybeSingle();
+ if(s.error) throw s.error;
+ if(!s.data||s.data.is_active===false) throw Error('No active shop assigned to this account.');
+ currentShop=s.data;
+ $('shopTitle').textContent=currentShop.name;
+}
+async function loadShops(){const{data,error}=await db.rpc('admin_get_shops');if(error)throw error;$('shopsList').innerHTML=(data||[]).map(s=>`<div class="adminrow"><span>${esc(s.name)}${s.is_active?'':' (inactive)'}</span><span>${esc(String(s.id).slice(0,8))}</span></div>`).join('')||'<div class="empty">No shops yet.</div>'}
+$('createShopBtn').onclick=async()=>{try{const n=$('shopName').value.trim();if(!n)throw Error('Enter shop name.');const{data,error}=await db.rpc('create_shop',{shop_name:n});if(error)throw error;$('shopName').value='';msg('Shop created. ID: '+data);await loadShops()}catch(e){msg('ERROR: '+e.message,true)}};
+async function loadTyres(){const{data,error}=await db.from('tyres').select('*').eq('shop_id',currentShop.id).order('created_at',{ascending:false});if(error)throw error;currentTyres=data||[];renderTyres()}
+function renderTyres(){if(!currentTyres.length){$('stockList').innerHTML='<div class="empty">No tyres in stock.</div>';return}$('stockList').innerHTML=currentTyres.map(t=>`<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3><div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div><div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div><div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div><div class="actions"><button class="secondary" onclick="editTyre('${t.id}')">Edit</button><button class="danger" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`).join('')}
+window.editTyre=function(id){const t=currentTyres.find(x=>x.id===id);if(!t)return;editTyreId=id;$('formTitle').textContent='Edit Tyre';$('saveTyreBtn').textContent='Save Changes';$('cancelEditBtn').classList.remove('hidden');populateBrands(t.brand);$('brand').value=t.brand;updateModels(t.model);$('size').value=t.size||`${t.width}/${t.profile}/${t.rim}`;$('dot').value=dateToDot(t.date);$('tyreCondition').value=t.tyre_condition||'New';$('quantity').value=t.quantity??1;$('salePrice').value=t.sale_price??'';window.scrollTo({top:0,behavior:'smooth'})};
+window.deleteTyre=async function(id){if(!confirm('Delete this tyre?'))return;const{error}=await db.from('tyres').delete().eq('id',id).eq('shop_id',currentShop.id);if(error){msg('ERROR: '+error.message,true);return}msg('Tyre deleted.');await loadTyres()};
+async function doLogin(){
+ try{
+  $('loginBtn').disabled=true;
+  msg('Logging in...');
+  const email=$('email').value.trim(),password=$('password').value;
+  if(!email||!password) throw Error('Enter email and password.');
+  const r=await db.auth.signInWithPassword({email,password});
+  if(r.error) throw r.error;
+  currentUser=r.data.user;
+
+  // Check shop membership first. This avoids relying on the admin RPC
+  // to decide where a normal shop user should go.
+  const membership=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id);
+  if(membership.error) throw membership.error;
+
+  if(membership.data && membership.data.length){
+   await loadShop();
+   $('loginBox').classList.add('hidden');
+   $('adminBox').classList.add('hidden');
+   $('shopBox').classList.remove('hidden');
+   await loadTyres();
+   msg('Logged in as '+currentShop.name+'.');
+  }else{
+   const isAdmin=await admin();
+   if(!isAdmin) throw Error('This account is not assigned to a shop and is not a G Tyres Admin.');
+   $('loginBox').classList.add('hidden');
+   $('shopBox').classList.add('hidden');
+   $('adminBox').classList.remove('hidden');
+   await loadShops();
+   msg('Logged in as G Tyres Admin.');
+  }
+ }catch(e){ msg('ERROR: '+(e?.message||String(e)),true); }
+ finally{ $('loginBtn').disabled=false; }
+}
+$('loginBtn').onclick=doLogin;
+$('email').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+$('shopLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};$('adminLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};
+async function restore(){
+ try{
+  const r=await db.auth.getSession();
+  if(!r.data.session)return;
+  currentUser=r.data.session.user;
+  if(await admin()){
+   $('loginBox').classList.add('hidden');$('shopBox').classList.add('hidden');$('adminBox').classList.remove('hidden');
+   await loadShops();msg('Logged in as G Tyres Admin.');
+  }else{
+   await loadShop();
+   $('loginBox').classList.add('hidden');$('adminBox').classList.add('hidden');$('shopBox').classList.remove('hidden');
+   await loadTyres();msg('Logged in as '+currentShop.name+'.');
+  }
+ }catch(e){
+  await db.auth.signOut();
+  msg('Session error: '+(e?.message||String(e)),true);
+ }
+}
+populateBrands();restore();
+</script>
+</body>
+</html>
