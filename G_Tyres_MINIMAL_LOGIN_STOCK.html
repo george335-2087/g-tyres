@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>G Tyres</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial,sans-serif;max-width:700px;margin:30px auto;padding:15px;background:#f5f5f5}
+.card{background:#fff;padding:20px;border-radius:12px;margin-bottom:15px}
+input,select,button{width:100%;box-sizing:border-box;padding:12px;margin:6px 0;font-size:16px}
+button{cursor:pointer;background:#111;color:#fff;border:0;border-radius:7px}
+.secondary{background:#777}
+.hidden{display:none}
+.row{border:1px solid #ddd;padding:12px;border-radius:8px;margin:8px 0}
+#message{padding:10px;border-radius:7px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div id="message" class="hidden"></div>
+
+<div id="loginBox" class="card">
+<h2>G Tyres Login</h2>
+<input id="email" type="email" placeholder="Email" autocomplete="username">
+<input id="password" type="password" placeholder="Password" autocomplete="current-password">
+<button id="loginBtn">Login</button>
+</div>
+
+<div id="adminBox" class="hidden">
+<div class="card">
+<h2>G Tyres Admin</h2>
+<input id="shopName" placeholder="Shop name">
+<button id="createShopBtn">Create Shop</button>
+<div id="shopsList"></div>
+<button id="adminLogoutBtn" class="secondary">Logout</button>
+</div>
+</div>
+
+<div id="shopBox" class="hidden">
+<div class="card">
+<h2 id="shopTitle"></h2>
+<input id="brand" placeholder="Brand">
+<input id="model" placeholder="Model">
+<input id="size" placeholder="Size e.g. 225/45/17">
+<input id="date" placeholder="DOT e.g. 3526">
+<select id="tyreCondition">
+<option>New</option>
+<option>New-Old</option>
+<option>Used</option>
+</select>
+<input id="quantity" type="number" min="1" value="1" placeholder="Quantity">
+<input id="salePrice" type="number" step="0.01" min="0" placeholder="Sale Price €">
+<button id="saveBtn">Add Tyre</button>
+</div>
+
+<div class="card">
+<h2>My Stock</h2>
+<div id="stockList"></div>
+</div>
+
+<div class="card">
+<button id="shopLogoutBtn" class="secondary">Logout</button>
+</div>
+</div>
+
+<script>
+const URL='https://dkejccpmfnwdofbnsuof.supabase.co';
+const KEY='sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F';
+const db=supabase.createClient(URL,KEY);
+
+let user=null,shop=null;
+
+const $=id=>document.getElementById(id);
+function msg(t,err=false){
+ const e=$('message'); e.textContent=t; e.classList.remove('hidden');
+ e.style.background=err?'#ffdede':'#e8e8e8';
+}
+
+async function isAdmin(){
+ const r=await db.rpc('admin_get_shops');
+ if(r.error) throw r.error;
+ return Array.isArray(r.data)&&r.data.length>0;
+}
+
+async function getShop(){
+ const r=await db.from('shop_users').select('shop_id,role').eq('user_id',user.id);
+ if(r.error) throw r.error;
+ if(!r.data||!r.data.length) throw new Error('No shop assigned to this account.');
+
+ const s=await db.from('shops').select('id,name,is_active').eq('id',r.data[0].shop_id).maybeSingle();
+ if(s.error) throw s.error;
+ if(!s.data) throw new Error('Shop not found.');
+ if(s.data.is_active===false) throw new Error('Shop is inactive.');
+ shop=s.data;
+ $('shopTitle').textContent=shop.name;
+}
+
+async function loadShops(){
+ const r=await db.rpc('admin_get_shops');
+ if(r.error) throw r.error;
+ $('shopsList').innerHTML=(r.data||[]).map(x=>
+ `<div class="row">${x.name}</div>`).join('')||'No shops';
+}
+
+async function loadStock(){
+ const r=await db.from('tyres').select('*').eq('shop_id',shop.id).order('created_at',{ascending:false});
+ if(r.error) throw r.error;
+
+ $('stockList').innerHTML=(r.data||[]).map(x=>`
+ <div class="row">
+ <b>${x.brand||''} ${x.model||''}</b><br>
+ Size: ${x.size||''}<br>
+ DOT: ${x.date||''}<br>
+ Condition: ${x.tyre_condition||''}<br>
+ Quantity: ${x.quantity??0}<br>
+ Price: €${x.sale_price??'0.00'}
+ </div>`).join('')||'No stock yet.';
+}
+
+async function login(){
+ try{
+  $('loginBtn').disabled=true;
+  const email=$('email').value.trim();
+  const password=$('password').value;
+  if(!email||!password) throw new Error('Enter email and password.');
+
+  const r=await db.auth.signInWithPassword({email,password});
+  if(r.error) throw r.error;
+
+  user=r.data.user;
+
+  if(await isAdmin()){
+   $('loginBox').classList.add('hidden');
+   $('shopBox').classList.add('hidden');
+   $('adminBox').classList.remove('hidden');
+   await loadShops();
+   msg('Logged in as Admin.');
+  }else{
+   await getShop();
+   $('loginBox').classList.add('hidden');
+   $('adminBox').classList.add('hidden');
+   $('shopBox').classList.remove('hidden');
+   await loadStock();
+   msg('Logged in as '+shop.name+'.');
+  }
+ }catch(e){
+  msg('ERROR: '+(e.message||e),true);
+ }finally{
+  $('loginBtn').disabled=false;
+ }
+}
+
+$('loginBtn').onclick=login;
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+$('email').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+
+$('createShopBtn').onclick=async()=>{
+ try{
+  const name=$('shopName').value.trim();
+  if(!name) throw new Error('Enter shop name.');
+  const r=await db.rpc('create_shop',{shop_name:name});
+  if(r.error) throw r.error;
+  $('shopName').value='';
+  await loadShops();
+  msg('Shop created.');
+ }catch(e){msg('ERROR: '+e.message,true)}
+};
+
+$('saveBtn').onclick=async()=>{
+ try{
+  const size=$('size').value.trim();
+  const m=size.match(/^(\d{3})\s*\/\s*(\d{2,3})\s*\/\s*(\d{2})$/);
+  if(!m) throw new Error('Size must be like 225/45/17.');
+
+  const r=await db.from('tyres').insert({
+   shop_id:shop.id,
+   brand:$('brand').value.trim(),
+   model:$('model').value.trim(),
+   size,
+   width:Number(m[1]),
+   profile:Number(m[2]),
+   rim:Number(m[3]),
+   date:$('date').value.trim()||null,
+   tyre_condition:$('tyreCondition').value,
+   quantity:Number($('quantity').value)||1,
+   sale_price:$('salePrice').value?Number($('salePrice').value):null
+  });
+  if(r.error) throw r.error;
+  $('brand').value='';$('model').value='';$('size').value='';$('date').value='';
+  $('quantity').value=1;$('salePrice').value='';
+  await loadStock();
+  msg('Tyre added.');
+ }catch(e){msg('ERROR: '+e.message,true)}
+};
+
+$('shopLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};
+$('adminLogoutBtn').onclick=async()=>{await db.auth.signOut();location.reload()};
+
+async function restore(){
+ try{
+  const r=await db.auth.getSession();
+  if(!r.data.session)return;
+  user=r.data.session.user;
+
+  if(await isAdmin()){
+   $('loginBox').classList.add('hidden');
+   $('adminBox').classList.remove('hidden');
+   await loadShops();
+   msg('Logged in as Admin.');
+  }else{
+   await getShop();
+   $('loginBox').classList.add('hidden');
+   $('shopBox').classList.remove('hidden');
+   await loadStock();
+   msg('Logged in as '+shop.name+'.');
+  }
+ }catch(e){
+  await db.auth.signOut();
+  msg('ERROR: '+e.message,true);
+ }
+}
+restore();
+</script>
+</body>
+</html>
