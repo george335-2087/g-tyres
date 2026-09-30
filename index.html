@@ -13,7 +13,7 @@
 <div id="message" class="msg hidden"></div>
 
 <div id="loginBox" class="card">
-<h1>G Tyres</h1>
+<h1>G Tyres</h1><div id="startup" class="muted">Ready</div>
 <label>Email</label><input id="email" type="email" autocomplete="username">
 <label>Password</label>
 <div class="passwordWrap">
@@ -58,7 +58,8 @@ let refreshToken=localStorage.getItem('GT_REFRESH_TOKEN')||'';
 let currentUser=null,currentShop=null,currentTyres=[],editTyreId=null;
 
 const $=id=>document.getElementById(id);
-function msg(t,error=false){const e=$('message');e.textContent=t;e.classList.remove('hidden');e.style.background=error?'#ffe2e2':'#eee'}
+function msg(t,error=false){const e=$('message');e.textContent=t;e.classList.remove('hidden');e.style.background=error?'#ffe2e2':'#eee';}
+function startup(t){const e=$('startup');if(e)e.textContent=t;}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 async function api(path,options={}){
@@ -169,7 +170,7 @@ async function restore(){
    await routeUser();
  }catch(e){localStorage.removeItem('GT_ACCESS_TOKEN');localStorage.removeItem('GT_REFRESH_TOKEN');accessToken='';msg('Session expired. Please login again.',true)}
 }
-populateBrands();restore();
+populateBrands(); startup('Ready — Supabase connection available.'); restore();
 </script>
 </body>
 </html>
