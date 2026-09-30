@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>G Tyres Stocks</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -33,13 +34,8 @@ button.small{width:auto;padding:8px 12px;margin:0}
 .suggest{font-size:12px;color:#666;margin-top:4px}
 .password-wrap{position:relative}
 .password-wrap input{padding-right:52px}
-.eye-btn{position:absolute;right:7px;top:5px;width:42px;height:42px;padding:0;margin:0;border:0;background:transparent;color:#333;font-size:22px;line-height:42px}
-.eye-btn:hover{background:#eee}
-@media(max-width:650px){
-.grid{grid-template-columns:1fr}
-.top{align-items:flex-start;flex-direction:column}
-.top button{width:100%}
-}
+.eye-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:42px;height:42px;padding:0;margin:0;background:transparent;color:#111;border:0;font-size:22px}
+@media(max-width:650px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.top button{width:100%}}
 </style>
 </head>
 <body>
@@ -49,17 +45,17 @@ button.small{width:auto;padding:8px 12px;margin:0}
 <div id="loginBox" class="card">
 <h1>G Tyres</h1>
 <label>Email</label>
-<input id="email" type="email" autocomplete="username" inputmode="email">
+<input id="email" type="email" autocomplete="username">
 <label>Password</label>
 <div class="password-wrap">
 <input id="password" type="password" autocomplete="current-password">
-<button id="togglePassword" class="eye-btn" type="button" aria-label="Show password" title="Show password">👁️</button>
+<button type="button" id="togglePassword" class="eye-btn" aria-label="Show password">👁️</button>
 </div>
 <button id="loginBtn" type="button">Login</button>
 </div>
 
 <div id="adminBox" class="card hidden">
-<div class="top"><h2>G Tyres Admin</h2><button id="adminLogoutBtn" class="secondary" type="button">Logout</button></div>
+<div class="top"><h2>G Tyres Admin</h2><button id="adminLogoutBtn" class="secondary">Logout</button></div>
 <label>New shop</label><input id="shopName" placeholder="Shop name">
 <button id="createShopBtn" type="button">Create Shop</button>
 <h3>Shops</h3><div id="shopsList"></div>
@@ -67,7 +63,7 @@ button.small{width:auto;padding:8px 12px;margin:0}
 
 <div id="shopBox" class="hidden">
 <div class="card">
-<div class="top"><div><h2 id="shopTitle">Shop</h2><div class="muted">G Tyres Stocks</div></div><button id="shopLogoutBtn" class="secondary" type="button">Logout</button></div>
+<div class="top"><div><h2 id="shopTitle">Shop</h2><div class="muted">G Tyres Stocks</div></div><button id="shopLogoutBtn" type="button" class="secondary">Logout</button></div>
 </div>
 
 <div class="card">
@@ -84,18 +80,21 @@ button.small{width:auto;padding:8px 12px;margin:0}
 <button type="button" id="addModelBtn" class="secondary">＋ Add new model</button>
 </div>
 </div>
+
 <label>Size</label>
 <input id="size" inputmode="numeric" maxlength="9" placeholder="205/40/17">
 <div class="suggest">Example: 205 → 205/ → 205/40/ → 205/40/17 → DOT</div>
+
 <label>DOT</label>
 <input id="dot" inputmode="numeric" maxlength="4" placeholder="WWYY">
+
 <div class="grid">
 <div><label>Condition</label><select id="tyreCondition"><option>New</option><option>New-Old</option><option>Used</option></select></div>
 <div><label>Quantity</label><input id="quantity" type="number" min="1" value="1"></div>
 </div>
 <label>Sale Price (€)</label><input id="salePrice" type="number" step="0.01" min="0" placeholder="0.00">
 <button id="saveTyreBtn" type="button">Add Tyre</button>
-<button id="cancelEditBtn" class="secondary hidden" type="button">Cancel Edit</button>
+<button id="cancelEditBtn" type="button" class="secondary hidden">Cancel Edit</button>
 </div>
 
 <div class="card"><h2>My Stock</h2><div id="stockList"></div></div>
@@ -103,43 +102,26 @@ button.small{width:auto;padding:8px 12px;margin:0}
 </div>
 
 <script>
-(function(){
-"use strict";
-
-const URL='https://dkejccpmfnwdofbnsuof.supabase.co';
-const KEY='sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F';
-
-if(!window.supabase){
-  document.getElementById("message").textContent="ERROR: Supabase library did not load.";
-  document.getElementById("message").classList.remove("hidden");
-  return;
-}
-
-const db=window.supabase.createClient(URL,KEY);
-window.db=db;
+const SUPABASE_URL='https://dkejccpmfnwdofbnsuof.supabase.co';
+const SUPABASE_KEY='sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F';
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentUser=null,currentShop=null,currentTyres=[],editTyreId=null;
 
 const $=id=>document.getElementById(id);
-
-function msg(t,error=false){
-  const e=$("message");
-  e.textContent=t;
-  e.classList.remove("hidden");
+function msg(text,error=false){
+  const e=$('message'); e.textContent=text; e.classList.remove('hidden');
   e.style.background=error?'#ffe2e2':'#eee';
 }
-
 function esc(v){
   return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* Password eye */
-$("togglePassword").onclick=()=>{
-  const input=$("password");
-  const show=input.type==="password";
-  input.type=show?"text":"password";
-  $("togglePassword").textContent=show?"🙈":"👁️";
-  $("togglePassword").setAttribute("aria-label",show?"Hide password":"Show password");
-  $("togglePassword").setAttribute("title",show?"Hide password":"Show password");
+$('togglePassword').onclick=()=>{
+  const p=$('password'), b=$('togglePassword');
+  const show=p.type==='password';
+  p.type=show?'text':'password';
+  b.textContent=show?'🙈':'👁️';
+  b.setAttribute('aria-label',show?'Hide password':'Show password');
 };
 
 const baseBrands=[
@@ -193,105 +175,58 @@ function saveCustomModels(a){localStorage.setItem('G_TYRES_CUSTOM_MODELS',JSON.s
 function allBrands(){return [...new Set([...baseBrands,...customBrands()])].sort()}
 
 function populateBrands(selected=''){
-  $("brand").innerHTML='<option value="">Select brand</option>'+allBrands().map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')+'<option value="__add__">＋ Add new brand</option>';
-  if(selected)$("brand").value=selected;
+  $('brand').innerHTML='<option value="">Select brand</option>'+
+    allBrands().map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')+
+    '<option value="__add__">＋ Add new brand</option>';
+  if(selected)$('brand').value=selected;
   updateModels();
 }
-
 function updateModels(selected=''){
-  const b=$("brand").value;
+  const b=$('brand').value;
   let arr=[...(modelMap[b]||[])];
   const cm=customModels();
   if(cm[b])arr.push(...cm[b]);
   arr=[...new Set(arr)].sort();
-  $("model").innerHTML='<option value="">Select model</option>'+arr.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')+'<option value="__add__">＋ Add new model</option>';
-  if(selected)$("model").value=selected;
+  $('model').innerHTML='<option value="">Select model</option>'+
+    arr.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')+
+    '<option value="__add__">＋ Add new model</option>';
+  if(selected)$('model').value=selected;
 }
-
 function addBrand(){
   const n=prompt('Enter new tyre brand:');
   if(!n)return;
-  const name=n.trim();
-  if(!name)return;
+  const name=n.trim(); if(!name)return;
   let a=customBrands();
-  if(!allBrands().some(x=>x.toLowerCase()===name.toLowerCase())){
-    a.push(name);
-    saveCustomBrands(a);
-  }
-  populateBrands(name);
-  msg('Brand added: '+name);
+  if(!allBrands().some(x=>x.toLowerCase()===name.toLowerCase())){a.push(name);saveCustomBrands(a)}
+  populateBrands(name); msg('Brand added: '+name);
 }
-
 function addModel(){
-  const b=$("brand").value;
-  if(!b||b==="__add__"){alert('Select a brand first.');return}
+  const b=$('brand').value;
+  if(!b||b==='__add__'){alert('Select a brand first.');return}
   const n=prompt('Enter new model for '+b+':');
   if(!n)return;
-  const name=n.trim();
-  if(!name)return;
-  let cm=customModels();
-  cm[b]=cm[b]||[];
+  const name=n.trim(); if(!name)return;
+  let cm=customModels(); cm[b]=cm[b]||[];
   if(!cm[b].some(x=>x.toLowerCase()===name.toLowerCase()))cm[b].push(name);
-  saveCustomModels(cm);
-  updateModels(name);
-  msg('Model added: '+name);
+  saveCustomModels(cm); updateModels(name); msg('Model added: '+name);
 }
-
-$("brand").onchange=()=>{
-  if($("brand").value==='__add__'){addBrand();return}
-  updateModels();
-};
-$("model").onchange=()=>{
-  if($("model").value==='__add__')addModel();
-};
-$("addBrandBtn").onclick=addBrand;
-$("addModelBtn").onclick=addModel;
+$('brand').onchange=()=>{if($('brand').value==='__add__'){addBrand();return}updateModels()};
+$('model').onchange=()=>{if($('model').value==='__add__')addModel()};
+$('addBrandBtn').onclick=addBrand;
+$('addModelBtn').onclick=addModel;
 
 function parseSize(s){
   const m=String(s||'').trim().match(/^(\d{3})\/(\d{2})\/(\d{2})$/);
-  if(!m)return null;
-  return{width:+m[1],profile:+m[2],rim:+m[3]};
+  return m?{width:+m[1],profile:+m[2],rim:+m[3]}:null;
 }
-
-/* 205 -> 205/ -> 205/40/ -> 205/40/17 -> DOT */
-$("size").oninput=function(){
+$('size').oninput=function(){
   const d=this.value.replace(/\D/g,'').slice(0,7);
   let o=d;
   if(d.length>3)o=d.slice(0,3)+'/'+d.slice(3);
   if(d.length>5)o=d.slice(0,3)+'/'+d.slice(3,5)+'/'+d.slice(5,7);
   this.value=o;
-  if(d.length===7){
-    $("dot").focus();
-  }
+  if(d.length===7)$('dot').focus();
 };
-
-$("dot").oninput=function(){
-  this.value=this.value.replace(/\D/g,'').slice(0,4);
-  if(this.value.length===4){
-    const w=+this.value.slice(0,2),y=+this.value.slice(2);
-    if(w>=1&&w<=53){
-      const yr=2000+y;
-      const d=new Date(Date.UTC(yr,0,4));
-      const day=d.getUTCDay()||7;
-      d.setUTCDate(d.getUTCDate()-day+1+(w-1)*7);
-      this.dataset.date=d.toISOString().slice(0,10);
-    }
-  }
-};
-
-function dateToDot(dateStr){
-  if(!dateStr)return'';
-  const d=new Date(dateStr+'T12:00:00Z');
-  if(isNaN(d))return'';
-  const target=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
-  const day=target.getUTCDay()||7;
-  target.setUTCDate(target.getUTCDate()+4-day);
-  const year=target.getUTCFullYear();
-  const first=new Date(Date.UTC(year,0,1));
-  const week=Math.ceil((((target-first)/86400000)+1)/7);
-  return String(week).padStart(2,'0')+String(year).slice(-2);
-}
-
 function dotToDate(dot){
   if(!/^\d{4}$/.test(dot))return null;
   const w=+dot.slice(0,2),yr=2000+(+dot.slice(2));
@@ -301,215 +236,200 @@ function dotToDate(dot){
   d.setUTCDate(d.getUTCDate()-day+1+(w-1)*7);
   return d.toISOString().slice(0,10);
 }
+function dateToDot(dateStr){
+  if(!dateStr)return'';
+  const d=new Date(dateStr+'T12:00:00Z'); if(isNaN(d))return'';
+  const target=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
+  const day=target.getUTCDay()||7;
+  target.setUTCDate(target.getUTCDate()+4-day);
+  const year=target.getUTCFullYear();
+  const first=new Date(Date.UTC(year,0,1));
+  const week=Math.ceil((((target-first)/86400000)+1)/7);
+  return String(week).padStart(2,'0')+String(year).slice(-2);
+}
+$('dot').oninput=function(){this.value=this.value.replace(/\D/g,'').slice(0,4)};
 
 function resetForm(){
   editTyreId=null;
-  $("formTitle").textContent='Add Tyre';
-  $("saveTyreBtn").textContent='Add Tyre';
-  $("cancelEditBtn").classList.add('hidden');
-  $("brand").value='';
-  updateModels();
-  $("model").value='';
-  $("size").value='';
-  $("dot").value='';
-  $("dot").dataset.date='';
-  $("tyreCondition").value='New';
-  $("quantity").value=1;
-  $("salePrice").value='';
+  $('formTitle').textContent='Add Tyre';
+  $('saveTyreBtn').textContent='Add Tyre';
+  $('cancelEditBtn').classList.add('hidden');
+  $('brand').value=''; updateModels(); $('model').value='';
+  $('size').value=''; $('dot').value='';
+  $('tyreCondition').value='New'; $('quantity').value=1; $('salePrice').value='';
 }
+$('cancelEditBtn').onclick=resetForm;
 
-$("cancelEditBtn").onclick=resetForm;
-
-$("saveTyreBtn").onclick=async()=>{
+async function isAdmin(){
   try{
-    if(!currentShop)throw Error('No shop selected.');
-    const b=$("brand").value,m=$("model").value,s=$("size").value.trim(),p=parseSize(s),dot=$("dot").value.trim(),date=dotToDate(dot);
-    if(!b||b==="__add__"||!m||m==="__add__")throw Error('Select brand and model.');
-    if(!p)throw Error('Size must be like 205/40/17.');
-    if(!date)throw Error('DOT must be WWYY, for example 3525.');
-    const qty=Math.max(1,parseInt($("quantity").value||'1',10));
-    const price=$("salePrice").value===''?null:Number($("salePrice").value);
-    const row={shop_id:currentShop.id,brand:b,model:m,width:p.width,profile:p.profile,rim:p.rim,size:s,date,quantity:qty,sale_price:price,tyre_condition:$("tyreCondition").value,updated_at:new Date().toISOString()};
-    let r;
-    if(editTyreId)r=await db.from('tyres').update(row).eq('id',editTyreId).eq('shop_id',currentShop.id);
-    else r=await db.from('tyres').insert(row);
-    if(r.error)throw r.error;
-    const wasEdit=!!editTyreId;
-    resetForm();
-    msg(wasEdit?'Tyre updated successfully.':'Tyre added successfully.');
-    await loadTyres();
-  }catch(e){msg('ERROR: '+(e.message||e),true)}
-};
-
-async function admin(){
-  const{data,error}=await db.rpc('is_admin');
-  if(error)throw error;
-  return data===true;
+    const r=await db.rpc('is_admin');
+    return !r.error && r.data===true;
+  }catch{return false}
 }
 
 async function loadShop(){
-  const membership=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id).limit(1).maybeSingle();
+  const membership=await db.from('shop_users')
+    .select('shop_id,role')
+    .eq('user_id',currentUser.id)
+    .maybeSingle();
   if(membership.error)throw membership.error;
   if(!membership.data)throw Error('No shop assigned to this account.');
-  const shop=await db.from('shops').select('id,name,is_active').eq('id',membership.data.shop_id).eq('is_active',true).single();
+  const shop=await db.from('shops')
+    .select('id,name,is_active')
+    .eq('id',membership.data.shop_id)
+    .maybeSingle();
   if(shop.error)throw shop.error;
+  if(!shop.data||shop.data.is_active===false)throw Error('No active shop assigned to this account.');
   currentShop=shop.data;
-  $("shopTitle").textContent=currentShop.name;
+  $('shopTitle').textContent=currentShop.name;
 }
 
 async function loadShops(){
-  const{data,error}=await db.rpc('admin_get_shops');
+  const {data,error}=await db.rpc('admin_get_shops');
   if(error)throw error;
-  $("shopsList").innerHTML=(data||[]).map(s=>`<div class="adminrow"><span>${esc(s.name)}${s.is_active?'':' (inactive)'}</span><span>${esc(String(s.id).slice(0,8))}</span></div>`).join('')||'<div class="empty">No shops yet.</div>';
+  $('shopsList').innerHTML=(data||[]).map(s=>
+    `<div class="adminrow"><span>${esc(s.name)}${s.is_active?'':' (inactive)'}</span><span>${esc(String(s.id).slice(0,8))}</span></div>`
+  ).join('')||'<div class="empty">No shops yet.</div>';
 }
 
-$("createShopBtn").onclick=async()=>{
+$('createShopBtn').onclick=async()=>{
   try{
-    const n=$("shopName").value.trim();
+    const n=$('shopName').value.trim();
     if(!n)throw Error('Enter shop name.');
-    const{data,error}=await db.rpc('create_shop',{shop_name:n});
+    const {data,error}=await db.rpc('create_shop',{shop_name:n});
     if(error)throw error;
-    $("shopName").value='';
+    $('shopName').value='';
     msg('Shop created. ID: '+data);
     await loadShops();
   }catch(e){msg('ERROR: '+e.message,true)}
 };
 
 async function loadTyres(){
-  const{data,error}=await db.from('tyres').select('*').eq('shop_id',currentShop.id).order('created_at',{ascending:false});
+  const {data,error}=await db.from('tyres').select('*').eq('shop_id',currentShop.id).order('created_at',{ascending:false});
   if(error)throw error;
   currentTyres=data||[];
   renderTyres();
 }
-
 function renderTyres(){
-  if(!currentTyres.length){
-    $("stockList").innerHTML='<div class="empty">No tyres in stock.</div>';
-    return;
-  }
-  $("stockList").innerHTML=currentTyres.map(t=>`<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3><div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div><div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div><div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div><div class="actions"><button class="secondary" type="button" onclick="editTyre('${t.id}')">Edit</button><button class="danger" type="button" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`).join('');
+  if(!currentTyres.length){$('stockList').innerHTML='<div class="empty">No tyres in stock.</div>';return}
+  $('stockList').innerHTML=currentTyres.map(t=>
+    `<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3>
+    <div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div>
+    <div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div>
+    <div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div>
+    <div class="actions"><button type="button" class="secondary" onclick="editTyre('${t.id}')">Edit</button>
+    <button type="button" class="danger" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`
+  ).join('');
 }
-
 window.editTyre=function(id){
-  const t=currentTyres.find(x=>x.id===id);
-  if(!t)return;
+  const t=currentTyres.find(x=>x.id===id); if(!t)return;
   editTyreId=id;
-  $("formTitle").textContent='Edit Tyre';
-  $("saveTyreBtn").textContent='Save Changes';
-  $("cancelEditBtn").classList.remove('hidden');
+  $('formTitle').textContent='Edit Tyre';
+  $('saveTyreBtn').textContent='Save Changes';
+  $('cancelEditBtn').classList.remove('hidden');
   populateBrands(t.brand);
-  $("brand").value=t.brand;
-  updateModels(t.model);
-  $("size").value=t.size||`${t.width}/${t.profile}/${t.rim}`;
-  $("dot").value=dateToDot(t.date);
-  $("tyreCondition").value=t.tyre_condition||'New';
-  $("quantity").value=t.quantity??1;
-  $("salePrice").value=t.sale_price??'';
+  $('brand').value=t.brand; updateModels(t.model);
+  $('size').value=t.size||`${t.width}/${t.profile}/${t.rim}`;
+  $('dot').value=dateToDot(t.date);
+  $('tyreCondition').value=t.tyre_condition||'New';
+  $('quantity').value=t.quantity??1;
+  $('salePrice').value=t.sale_price??'';
   window.scrollTo({top:0,behavior:'smooth'});
 };
-
 window.deleteTyre=async function(id){
   if(!confirm('Delete this tyre?'))return;
-  const{error}=await db.from('tyres').delete().eq('id',id).eq('shop_id',currentShop.id);
+  const {error}=await db.from('tyres').delete().eq('id',id).eq('shop_id',currentShop.id);
   if(error){msg('ERROR: '+error.message,true);return}
-  msg('Tyre deleted.');
-  await loadTyres();
+  msg('Tyre deleted.'); await loadTyres();
 };
 
-/* Login */
-$("loginBtn").onclick=async()=>{
-  const btn=$("loginBtn");
-  if(btn.disabled)return;
-  btn.disabled=true;
+$('saveTyreBtn').onclick=async()=>{
   try{
-    const email=$("email").value.trim();
-    const pass=$("password").value;
+    if(!currentShop)throw Error('No shop selected.');
+    const b=$('brand').value,m=$('model').value,s=$('size').value.trim(),p=parseSize(s),dot=$('dot').value.trim(),date=dotToDate(dot);
+    if(!b||b==='__add__'||!m||m==='__add__')throw Error('Select brand and model.');
+    if(!p)throw Error('Size must be like 205/40/17.');
+    if(!date)throw Error('DOT must be WWYY, for example 3525.');
+    const qty=Math.max(1,parseInt($('quantity').value||'1',10));
+    const price=$('salePrice').value===''?null:Number($('salePrice').value);
+    const row={shop_id:currentShop.id,brand:b,model:m,width:p.width,profile:p.profile,rim:p.rim,size:s,date,quantity:qty,sale_price:price,tyre_condition:$('tyreCondition').value,updated_at:new Date().toISOString()};
+    const r=editTyreId
+      ?await db.from('tyres').update(row).eq('id',editTyreId).eq('shop_id',currentShop.id)
+      :await db.from('tyres').insert(row);
+    if(r.error)throw r.error;
+    msg(editTyreId?'Tyre updated successfully.':'Tyre added successfully.');
+    resetForm(); await loadTyres();
+  }catch(e){msg('ERROR: '+e.message,true)}
+};
+
+async function doLogin(){
+  const btn=$('loginBtn');
+  try{
+    btn.disabled=true;
+    const email=$('email').value.trim(), pass=$('password').value;
     if(!email||!pass)throw Error('Enter email and password.');
-    msg('Logging in...');
-    const result=await db.auth.signInWithPassword({email:email,password:pass});
+    const result=await db.auth.signInWithPassword({email,password:pass});
     if(result.error)throw result.error;
     currentUser=result.data.user;
-    const isAdmin=await admin();
-    if(isAdmin){
-      $("loginBox").classList.add('hidden');
-      $("shopBox").classList.add('hidden');
-      $("adminBox").classList.remove('hidden');
+    if(await isAdmin()){
+      $('loginBox').classList.add('hidden');
+      $('adminBox').classList.remove('hidden');
       msg('Logged in as G Tyres Admin.');
       await loadShops();
     }else{
       await loadShop();
-      $("loginBox").classList.add('hidden');
-      $("adminBox").classList.add('hidden');
-      $("shopBox").classList.remove('hidden');
+      $('loginBox').classList.add('hidden');
+      $('shopBox').classList.remove('hidden');
       msg('Logged in as '+currentShop.name+'.');
       await loadTyres();
     }
   }catch(e){
-    console.error(e);
-    msg('ERROR: '+(e.message||e),true);
-  }finally{
-    btn.disabled=false;
-  }
-};
+    msg('ERROR: '+(e&&e.message?e.message:String(e)),true);
+    try{await db.auth.signOut()}catch{}
+    currentUser=null; currentShop=null;
+  }finally{btn.disabled=false}
+}
+$('loginBtn').onclick=doLogin;
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+$('email').addEventListener('keydown',e=>{if(e.key==='Enter')$('password').focus()});
 
-$("password").addEventListener("keydown",e=>{
-  if(e.key==="Enter")$("loginBtn").click();
-});
-
-$("shopLogoutBtn").onclick=async()=>{
-  await db.auth.signOut();
-  currentUser=null;
-  currentShop=null;
-  $("adminBox").classList.add('hidden');
-  $("shopBox").classList.add('hidden');
-  $("loginBox").classList.remove('hidden');
-  $("password").value='';
+async function logout(){
+  try{await db.auth.signOut()}catch{}
+  currentUser=null;currentShop=null;currentTyres=[];resetForm();
+  $('adminBox').classList.add('hidden');$('shopBox').classList.add('hidden');$('loginBox').classList.remove('hidden');
+  $('email').value='';$('password').value='';
   msg('Logged out.');
-};
-
-$("adminLogoutBtn").onclick=async()=>{
-  await db.auth.signOut();
-  currentUser=null;
-  currentShop=null;
-  $("adminBox").classList.add('hidden');
-  $("shopBox").classList.add('hidden');
-  $("loginBox").classList.remove('hidden');
-  $("password").value='';
-  msg('Logged out.');
-};
+}
+$('shopLogoutBtn').onclick=logout;
+$('adminLogoutBtn').onclick=logout;
 
 async function restore(){
   try{
-    const{data,error}=await db.auth.getSession();
+    const {data,error}=await db.auth.getSession();
     if(error)throw error;
     if(!data.session)return;
     currentUser=data.session.user;
-    const isAdmin=await admin();
-    if(isAdmin){
-      $("loginBox").classList.add('hidden');
-      $("shopBox").classList.add('hidden');
-      $("adminBox").classList.remove('hidden');
+    if(await isAdmin()){
+      $('loginBox').classList.add('hidden');
+      $('adminBox').classList.remove('hidden');
       await loadShops();
       msg('Logged in as G Tyres Admin.');
     }else{
       await loadShop();
-      $("loginBox").classList.add('hidden');
-      $("adminBox").classList.add('hidden');
-      $("shopBox").classList.remove('hidden');
+      $('loginBox').classList.add('hidden');
+      $('shopBox').classList.remove('hidden');
       await loadTyres();
       msg('Logged in as '+currentShop.name+'.');
     }
   }catch(e){
-    console.error(e);
-    await db.auth.signOut();
-    msg('Session error: '+(e.message||e),true);
+    try{await db.auth.signOut()}catch{}
+    currentUser=null;currentShop=null;
+    msg('Session error: '+(e&&e.message?e.message:String(e)),true);
   }
 }
 
 populateBrands();
 restore();
-
-})();
 </script>
 </body>
 </html>
