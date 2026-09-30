@@ -67,7 +67,8 @@ button{cursor:pointer;background:#111;color:#fff;border:0;border-radius:7px}
 <script>
 const URL='https://dkejccpmfnwdofbnsuof.supabase.co';
 const KEY='sb_publishable_iZkK5V_0_hFhmMDvUWkOfQ_XKpPcL8F';
-const db=supabase.createClient(URL,KEY);
+let db=null;
+function boot(){try{if(!window.supabase)throw new Error('Supabase library did not load.');db=window.supabase.createClient(URL,KEY);}catch(e){msg('ERROR: '+e.message,true);}}
 
 let user=null,shop=null;
 
@@ -120,6 +121,8 @@ async function loadStock(){
 
 async function login(){
  try{
+  msg('Connecting...');
+  if(!db) throw new Error('App did not initialize. Refresh the page.');
   $('loginBtn').disabled=true;
   const email=$('email').value.trim();
   const password=$('password').value;
@@ -151,7 +154,7 @@ async function login(){
  }
 }
 
-$('loginBtn').onclick=login;
+
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('email').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 
@@ -220,6 +223,8 @@ async function restore(){
   msg('ERROR: '+e.message,true);
  }
 }
+boot();
+$('loginBtn').addEventListener('click',login);
 restore();
 </script>
 </body>
