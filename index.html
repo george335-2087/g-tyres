@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="G Tyres">
 <title>G Tyres Stocks</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -40,6 +44,33 @@ button.small{width:auto;padding:8px 12px;margin:0}
 .top{align-items:flex-start;flex-direction:column}
 .top button{width:100%}
 }
+
+/* Mobile-first phone layout */
+@media(max-width:650px){
+  body{background:#f4f5f7;-webkit-text-size-adjust:100%;}
+  .wrap{width:100%;max-width:none;margin:0;padding:10px;}
+  .card{border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 6px #0001;}
+  h1{font-size:26px;margin-bottom:6px;}
+  h2{font-size:20px;margin-bottom:10px;}
+  label{font-size:14px;margin-top:10px;}
+  input,select,button{font-size:17px;min-height:48px;border-radius:10px;}
+  button{margin-top:8px;}
+  .eye-btn{min-height:42px;height:42px;margin-top:0;font-size:21px;}
+  .grid,.actions{grid-template-columns:1fr;gap:8px;}
+  .top{display:flex;flex-direction:row;align-items:center;gap:8px;}
+  .top button{width:auto;min-width:92px;margin:0;}
+  .stock{padding:12px;margin-top:8px;border-radius:10px;}
+  .stock h3{font-size:17px;}
+  .adminrow{flex-direction:column;align-items:stretch;gap:8px;}
+  .adminrow button{width:100%;}
+  .price{font-size:14px;}
+  .suggest{font-size:12px;line-height:1.35;}
+  .msg{font-size:14px;margin-bottom:10px;}
+  .empty{padding:16px 8px;}
+}
+@media(min-width:651px){
+  .phone-only{display:none!important;}
+}
 </style>
 </head>
 <body>
@@ -56,6 +87,14 @@ button.small{width:auto;padding:8px 12px;margin:0}
 <button id="togglePassword" class="eye-btn" type="button" aria-label="Show password" title="Show password">👁️</button>
 </div>
 <button id="loginBtn" type="button">Login</button>
+<div style="margin-top:10px;text-align:center"><button id="forgotPasswordBtn" type="button" class="secondary">Forgot password?</button></div>
+</div>
+
+<div id="resetBox" class="card hidden">
+<h2>Set new password</h2>
+<input id="newPassword" type="password" placeholder="New password" autocomplete="new-password">
+<input id="newPassword2" type="password" placeholder="Repeat new password" autocomplete="new-password">
+<button id="savePasswordBtn" type="button">Save new password</button>
 </div>
 
 <div id="adminBox" class="card hidden">
@@ -96,6 +135,21 @@ button.small{width:auto;padding:8px 12px;margin:0}
 <label>Sale Price (€)</label><input id="salePrice" type="number" step="0.01" min="0" placeholder="0.00">
 <button id="saveTyreBtn" type="button">Add Tyre</button>
 <button id="cancelEditBtn" class="secondary hidden" type="button">Cancel Edit</button>
+</div>
+
+<div class="card">
+<h2>Search Stock</h2>
+<label>Brand</label>
+<select id="stockSearchBrand"><option value="">All brands</option></select>
+<label>Model</label>
+<select id="stockSearchModel"><option value="">All models</option></select>
+<label>Tyre size</label>
+<input id="stockSearch" inputmode="numeric" maxlength="9" placeholder="205/40/19">
+<div class="suggest">Search by size, brand, model and condition.</div>
+<label>Condition</label>
+<select id="stockSearchCondition"><option value="">All conditions</option><option>New</option><option>New-Old</option><option>Used</option></select>
+<div class="actions"><button id="stockSearchBtn" type="button">Search</button><button id="stockSearchClearBtn" class="secondary" type="button">Clear</button></div>
+<div id="stockSearchResult" class="empty hidden"></div>
 </div>
 
 <div class="card"><h2>My Stock</h2><div id="stockList"></div></div>
@@ -143,7 +197,7 @@ $("togglePassword").onclick=()=>{
 };
 
 const baseBrands=[
-'Achilles','Aplus','Apollo','Atturo','Barum','BFGoodrich','Bridgestone','Centara','Ceat','Comforser','Continental','Cooper','CST','Debica','Delinte','Double Coin','Dunlop','Duraturn','Falken','Federal','Firestone','Fulda','General Tire','Giti','Goodride','Goodyear','Grenlander','Hankook','Imperial','JK Tyre','Kapsen','Kelly','Kleber','Kormoran','Kumho','Landsail','Laufenn','Linglong','Mazzini','Matador','Maxxis','Michelin','Milestar','MRF','Nexen','Nitto','Nokian Tyres','Ovation','Petlas','Pirelli','Powertrac','Radar','Riken','Royal Black','Sailun','Sava','Semperit','Sentury','Sumitomo','Tigar','Triangle','Toyo','Uniroyal','Vanderbilt','Vee Rubber','Viking','Vitour','Westlake','Yokohama','Zeta'
+'Accelera','Achilles','Austone','Aplus','Alliance','Apollo','Arivo','Atturo','BKT','Barum','BFGoodrich','Bridgestone','Centara','Ceat','Comforser','Continental','Cooper','CST','Davanti','Debica','Delinte','Dunlop','Duraturn','Evergreen','Falken','Federal','Firestone','Fortune','Fulda','General Tire','Giti','Goodride','Goodyear','Grenlander','Habilead','Hankook','Headway','Imperial','Linglong','Infinity','Interstate','JK Tyre','Kapsen','Kelly','Kenda','King Meiler','Kleber','Kormoran','Kumho','Landsail','Lanvigator','Laufenn','Leao','Linglong','Linglong Tire','Mazzini','Mastersteel','Matador','Maxxis','Michelin','Milestar','Minerva','Mirage','Momo','MRF','Nankang','Nexen','Nitto','Nokian Tyres','Ovation','Petlas','Pirelli','Powertrac','Radar','Royal Black','Riken','Roadcruza','Roadmarch','Rotalla','Royal Black','Sailun','Sava','Saferich','Sentury','Semperit','Linglong','Sumitomo','Sunny','Superia','Tigar','Torque','Triangle','Tracmax','Toyo','Uniroyal','Viking','Vittoria','Vitour','Voyager','Vredestein','Wanli','Westlake','Windforce','Winrun','Yokohama','Zeta'
 ].sort();
 
 const modelMap={
@@ -257,8 +311,18 @@ function parseSize(s){
 $("size").oninput=function(){
   const d=this.value.replace(/\D/g,'').slice(0,7);
   let o=d;
-  if(d.length>3)o=d.slice(0,3)+'/'+d.slice(3);
-  if(d.length>5)o=d.slice(0,3)+'/'+d.slice(3,5)+'/'+d.slice(5,7);
+  if(d.length>=3){
+    o=d.slice(0,3)+'/';
+  }
+  if(d.length>=4){
+    o=d.slice(0,3)+'/'+d.slice(3,5);
+  }
+  if(d.length>=5){
+    o=d.slice(0,3)+'/'+d.slice(3,5)+'/';
+  }
+  if(d.length>=6){
+    o=d.slice(0,3)+'/'+d.slice(3,5)+'/'+d.slice(5,7);
+  }
   this.value=o;
   if(d.length===7){
     $("dot").focus();
@@ -348,14 +412,11 @@ async function admin(){
 }
 
 async function loadShop(){
-  const{data:members,error:memberError}=await db.from('shop_users').select('shop_id,role').eq('user_id',currentUser.id);
-  if(memberError)throw memberError;
-  const member=(members||[])[0];
-  if(!member)throw Error('No shop assigned to this account.');
-  const{data:shop,error:shopError}=await db.from('shops').select('id,name,is_active').eq('id',member.shop_id).maybeSingle();
-  if(shopError)throw shopError;
-  if(!shop||shop.is_active===false)throw Error('Shop is not active.');
-  currentShop=shop;
+  const{data,error}=await db.from('shop_users').select('shop_id,role,shops(id,name,is_active)').eq('user_id',currentUser.id);
+  if(error)throw error;
+  const x=(data||[]).find(r=>r.shops&&r.shops.is_active!==false);
+  if(!x)throw Error('No shop assigned to this account.');
+  currentShop=x.shops;
   $("shopTitle").textContent=currentShop.name;
 }
 
@@ -382,6 +443,11 @@ async function loadTyres(){
   if(error)throw error;
   currentTyres=data||[];
   renderTyres();
+  if($("stockSearchBrand")) populateStockSearchFilters();
+}
+
+function tyreCard(t){
+  return `<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3><div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div><div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div><div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div><div class="actions"><button class="secondary" type="button" onclick="editTyre('${t.id}')">Edit</button><button class="danger" type="button" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`;
 }
 
 function renderTyres(){
@@ -389,8 +455,67 @@ function renderTyres(){
     $("stockList").innerHTML='<div class="empty">No tyres in stock.</div>';
     return;
   }
-  $("stockList").innerHTML=currentTyres.map(t=>`<div class="stock"><h3>${esc(t.brand)} ${esc(t.model)}</h3><div><b>${esc(t.size||`${t.width}/${t.profile}/${t.rim}`)}</b></div><div class="muted">DOT: ${esc(dateToDot(t.date)||'-')} · Condition: ${esc(t.tyre_condition||'New')} · Qty: ${esc(t.quantity)}</div><div class="price">€${t.sale_price==null?'—':Number(t.sale_price).toFixed(2)}</div><div class="actions"><button class="secondary" type="button" onclick="editTyre('${t.id}')">Edit</button><button class="danger" type="button" onclick="deleteTyre('${t.id}')">Delete</button></div></div>`).join('');
+  $("stockList").innerHTML=currentTyres.map(tyreCard).join('');
 }
+
+function normalizeSize(value){
+  return String(value||'').replace(/\D/g,'');
+}
+
+function populateStockSearchFilters(){
+  const brandSel=$("stockSearchBrand");
+  const brands=[...new Set(currentTyres.map(t=>String(t.brand||'').trim()).filter(Boolean))].sort();
+  brandSel.innerHTML='<option value="">All brands</option>'+brands.map(b=>'<option value="'+esc(b)+'">'+esc(b)+'</option>').join('');
+  updateStockSearchModels();
+}
+
+function updateStockSearchModels(){
+  const brand=$("stockSearchBrand").value;
+  const models=[...new Set(currentTyres.filter(t=>!brand||String(t.brand||'')===brand).map(t=>String(t.model||'').trim()).filter(Boolean))].sort();
+  $("stockSearchModel").innerHTML='<option value="">All models</option>'+models.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+}
+
+function searchStock(){
+  const raw=$("stockSearch").value.trim();
+  const q=normalizeSize(raw);
+  const brand=$("stockSearchBrand").value;
+  const model=$("stockSearchModel").value;
+  const condition=$("stockSearchCondition").value;
+  const box=$("stockSearchResult");
+  if(!q&&!brand&&!model&&!condition){
+    box.classList.remove('hidden');
+    box.innerHTML='<div class="empty">Choose a filter or enter a size to search your stock.</div>';
+    return;
+  }
+  const matches=currentTyres.filter(t=>{
+    const sizeOk=!q||normalizeSize(t.size||`${t.width}/${t.profile}/${t.rim}`)===q;
+    const brandOk=!brand||String(t.brand||'')===brand;
+    const modelOk=!model||String(t.model||'')===model;
+    const conditionOk=!condition||String(t.tyre_condition||'New')===condition;
+    return sizeOk&&brandOk&&modelOk&&conditionOk;
+  });
+  box.classList.remove('hidden');
+  if(!matches.length){
+    box.innerHTML='<div class="empty">No stock found.</div>';
+    return;
+  }
+  const total=matches.reduce((sum,t)=>sum+Number(t.quantity||0),0);
+  box.innerHTML='<div style="margin-bottom:10px"><b>In stock: '+total+'</b></div>'+matches.map(tyreCard).join('');
+}
+
+populateStockSearchFilters();
+$("stockSearchBrand").onchange=updateStockSearchModels;
+$("stockSearchBtn").onclick=searchStock;
+$("stockSearchClearBtn").onclick=()=>{
+  $("stockSearch").value='';
+  $("stockSearchBrand").value='';
+  updateStockSearchModels();
+  $("stockSearchModel").value='';
+  $("stockSearchCondition").value='';
+  $("stockSearchResult").classList.add('hidden');
+  $("stockSearchResult").innerHTML='';
+};
+$("stockSearch").addEventListener('keydown',e=>{if(e.key==='Enter')searchStock();});
 
 window.editTyre=function(id){
   const t=currentTyres.find(x=>x.id===id);
@@ -418,6 +543,63 @@ window.deleteTyre=async function(id){
   await loadTyres();
 };
 
+/* Password reset */
+$("forgotPasswordBtn").onclick=async()=>{
+  try{
+    const email=$("email").value.trim();
+    if(!email)throw Error("Enter your email first.");
+    msg("Sending password reset email...");
+    const redirectTo=window.location.href.split("#")[0];
+    const{error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
+    if(error)throw error;
+    msg("If this email is registered, you will receive a password reset email.");
+  }catch(e){
+    console.error(e);
+    msg("ERROR: "+(e.message||e),true);
+  }
+};
+
+function showPasswordReset(){
+  $("loginBox").classList.add("hidden");
+  $("adminBox").classList.add("hidden");
+  $("shopBox").classList.add("hidden");
+  $("resetBox").classList.remove("hidden");
+  msg("Enter your new password.");
+}
+
+db.auth.onAuthStateChange((event)=>{
+  if(event==="PASSWORD_RECOVERY") showPasswordReset();
+});
+
+// Also handle recovery links directly from the email URL.
+if(window.location.hash.includes("type=recovery")){
+  showPasswordReset();
+  db.auth.getSession().then(({data,error})=>{
+    if(error) msg("ERROR: "+error.message,true);
+    else if(!data.session) msg("The password reset link is invalid or expired.",true);
+  });
+}
+
+$("savePasswordBtn").onclick=async()=>{
+  try{
+    const p1=$("newPassword").value;
+    const p2=$("newPassword2").value;
+    if(!p1||p1.length<6)throw Error("Password must be at least 6 characters.");
+    if(p1!==p2)throw Error("Passwords do not match.");
+    const{error}=await db.auth.updateUser({password:p1});
+    if(error)throw error;
+    await db.auth.signOut();
+    $("resetBox").classList.add("hidden");
+    $("loginBox").classList.remove("hidden");
+    $("newPassword").value="";
+    $("newPassword2").value="";
+    msg("Password changed successfully. You can now log in.");
+  }catch(e){
+    console.error(e);
+    msg("ERROR: "+(e.message||e),true);
+  }
+};
+
 /* Login */
 $("loginBtn").onclick=async()=>{
   const btn=$("loginBtn");
@@ -431,9 +613,7 @@ $("loginBtn").onclick=async()=>{
     const result=await db.auth.signInWithPassword({email:email,password:pass});
     if(result.error)throw result.error;
     currentUser=result.data.user;
-    let isAdmin=false;
-    let adminError=null;
-    try{isAdmin=await admin()}catch(e){adminError=e}
+    const isAdmin=await admin();
     if(isAdmin){
       $("loginBox").classList.add('hidden');
       $("shopBox").classList.add('hidden');
@@ -441,12 +621,7 @@ $("loginBtn").onclick=async()=>{
       msg('Logged in as G Tyres Admin.');
       await loadShops();
     }else{
-      try{
-        await loadShop();
-      }catch(shopError){
-        if(adminError)throw adminError;
-        throw shopError;
-      }
+      await loadShop();
       $("loginBox").classList.add('hidden');
       $("adminBox").classList.add('hidden');
       $("shopBox").classList.remove('hidden');
